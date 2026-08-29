@@ -1,6 +1,13 @@
+//
+//  ClaudeAPIError.swift
+//  BloodTestSummarizer
+//
+//  Created by Parth Garg on 29/08/26.
+//
+
 import Foundation
 
-/// Reads the Anthropic API key for LOCAL PROTOTYPING ONLY.
+/// Reads the Anthropic API key
 ///
 /// Do not hardcode a real key in source. This reads from an Info.plist
 /// entry (`ANTHROPIC_API_KEY`) that you inject via a local .xcconfig file

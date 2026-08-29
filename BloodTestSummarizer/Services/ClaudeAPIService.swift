@@ -1,27 +1,12 @@
+//
+//  ClaudeAPIError.swift
+//  BloodTestSummarizer
+//
+//  Created by Parth Garg on 29/08/26.
+//
+
 import Foundation
 
-enum ClaudeAPIError: Error, LocalizedError, Sendable {
-    case missingAPIKey
-    case fileTooLarge
-    case invalidResponse
-    case server(String)
-    case decoding(Error)
-
-    var errorDescription: String? {
-        switch self {
-        case .missingAPIKey:
-            return "No API key is configured. See README.md — for a shipping app, point this at your own backend instead."
-        case .fileTooLarge:
-            return "This PDF is over the 32MB request limit. Try a smaller file."
-        case .invalidResponse:
-            return "The server sent back something this app didn't expect."
-        case .server(let message):
-            return message
-        case .decoding(let error):
-            return "Couldn't parse the summary Claude returned: \(error.localizedDescription)"
-        }
-    }
-}
 
 /// Sends a blood test PDF to Claude and parses back a structured summary.
 ///
@@ -31,44 +16,46 @@ enum ClaudeAPIError: Error, LocalizedError, Sendable {
 /// key can be extracted from the compiled binary by anyone who downloads
 /// your app. Before distributing this app, change `baseURL` below to your
 /// own backend endpoint that holds the real key server-side and forwards
-/// the request (a minimal example is in `backend-example/`), and drop the
-/// `x-api-key` header entirely from this client.
+/// the request and drop the`x-api-key` header entirely from this client.
 actor ClaudeAPIService {
 
     private let baseURL: URL
     private let apiKey: String?
     private let model: String
-    private let maxRequestBytes = 32 * 1024 * 1024 // Anthropic's documented request-size limit
+    private let maxTokens: Int
+    private let maxRequestBytes: Int = 32 * 1024 * 1024 // Anthropic's documented request-size limit
 
+    // We are using init here so as to make this class testable.
+    // Event though all these properties could be hardcoded, that would have resulted in this class being unmockable.
     init(
         baseURL: URL = URL(string: "https://api.anthropic.com/v1/messages")!,
         apiKey: String? = APIConfiguration.apiKey,
-        model: String = "claude-sonnet-5"
+        model: String = "claude-sonnet-5",
+        maxTokens: Int = 2048
     ) {
         self.baseURL = baseURL
         self.apiKey = apiKey
         self.model = model
+        self.maxTokens = maxTokens
     }
 
     func summarize(pdfData: Data) async throws -> BloodTestSummary {
-        guard pdfData.count <= maxRequestBytes else { throw ClaudeAPIError.fileTooLarge }
+        guard pdfData.count <= maxRequestBytes else { throw APIError.fileTooLarge }
 
         var request = URLRequest(url: baseURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
 
-        // Only needed when calling api.anthropic.com directly. Remove this
-        // once you're going through your own backend proxy (see README).
         if let apiKey {
             request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         } else {
-            throw ClaudeAPIError.missingAPIKey
+            throw APIError.missingAPIKey
         }
 
         let payload = MessagesRequest(
             model: model,
-            maxTokens: 2048,
+            maxTokens: maxTokens,
             system: Self.systemPrompt,
             messages: [
                 APIMessage(role: "user", content: [
@@ -82,27 +69,27 @@ actor ClaudeAPIService {
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw ClaudeAPIError.invalidResponse
+            throw APIError.invalidResponse
         }
         guard (200..<300).contains(httpResponse.statusCode) else {
             if let body = try? JSONDecoder().decode(APIErrorBody.self, from: data) {
-                throw ClaudeAPIError.server(body.error.message)
+                throw APIError.server(body.error.message)
             }
-            throw ClaudeAPIError.server("Request failed with status \(httpResponse.statusCode).")
+            throw APIError.server("Request failed with status \(httpResponse.statusCode).")
         }
 
         let messageResponse = try JSONDecoder().decode(MessagesResponse.self, from: data)
         guard let text = messageResponse.content.first(where: { $0.type == "text" })?.text else {
-            throw ClaudeAPIError.invalidResponse
+            throw APIError.invalidResponse
         }
 
         let jsonText = Self.stripCodeFences(from: text)
-        guard let jsonData = jsonText.data(using: .utf8) else { throw ClaudeAPIError.invalidResponse }
+        guard let jsonData = jsonText.data(using: .utf8) else { throw APIError.invalidResponse }
 
         do {
             return try JSONDecoder().decode(BloodTestSummary.self, from: jsonData)
         } catch {
-            throw ClaudeAPIError.decoding(error)
+            throw APIError.decoding(error)
         }
     }
 

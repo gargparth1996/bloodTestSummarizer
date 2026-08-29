@@ -1,3 +1,10 @@
+//
+//  ClaudeAPIError.swift
+//  BloodTestSummarizer
+//
+//  Created by Parth Garg on 29/08/26.
+//
+
 import Foundation
 
 /// The structured summary Claude returns for an uploaded blood test PDF.

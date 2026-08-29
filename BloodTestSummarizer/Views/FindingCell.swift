@@ -1,3 +1,10 @@
+//
+//  ClaudeAPIError.swift
+//  BloodTestSummarizer
+//
+//  Created by Parth Garg on 29/08/26.
+//
+
 import UIKit
 
 final class FindingCell: UITableViewCell {
