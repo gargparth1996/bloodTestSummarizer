@@ -7,7 +7,6 @@
 
 import Foundation
 
-
 /// Sends a blood test PDF to Claude and parses back a structured summary.
 ///
 /// ⚠️ SECURITY: as written, this talks to `api.anthropic.com` directly and
@@ -31,7 +30,7 @@ actor ClaudeAPIService {
         baseURL: URL = URL(string: "https://api.anthropic.com/v1/messages")!,
         apiKey: String? = APIConfiguration.apiKey,
         model: String = "claude-sonnet-5",
-        maxTokens: Int = 2048
+        maxTokens: Int = 64000
     ) {
         self.baseURL = baseURL
         self.apiKey = apiKey
@@ -39,7 +38,30 @@ actor ClaudeAPIService {
         self.maxTokens = maxTokens
     }
 
-    func summarize(pdfData: Data) async throws -> BloodTestSummary {
+    /// Streams a summary from Claude, yielding `.progress` events as the
+    /// response arrives and a single terminal `.finished` event once the
+    /// full JSON has been received and decoded.
+    ///
+    /// Cancelling the `Task` that is iterating the returned stream aborts
+    /// the underlying request via `onTermination`.
+    func summarize(pdfData: Data) -> AsyncThrowingStream<SummarizeEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let fetchTask = Task {
+                do {
+                    try await self.runSummarize(pdfData: pdfData, continuation: continuation)
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in fetchTask.cancel() }
+        }
+    }
+
+    private func runSummarize(
+        pdfData: Data,
+        continuation: AsyncThrowingStream<SummarizeEvent, Error>.Continuation
+    ) async throws {
         guard pdfData.count <= maxRequestBytes else { throw APIError.fileTooLarge }
 
         var request = URLRequest(url: baseURL)
@@ -62,35 +84,88 @@ actor ClaudeAPIService {
                     .document(mediaType: "application/pdf", base64Data: pdfData.base64EncodedString()),
                     .text("Summarize this blood test report.")
                 ])
-            ]
+            ],
+            stream: true
         )
         request.httpBody = try JSONEncoder().encode(payload)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        continuation.yield(.progress(phase: .uploading, testsFound: 0))
+
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
         }
         guard (200..<300).contains(httpResponse.statusCode) else {
-            if let body = try? JSONDecoder().decode(APIErrorBody.self, from: data) {
-                throw APIError.server(body.error.message)
+            let body = try await Self.collectBody(from: bytes)
+            if let errorBody = try? JSONDecoder().decode(APIErrorBody.self, from: body) {
+                throw APIError.server(errorBody.error.message)
             }
             throw APIError.server("Request failed with status \(httpResponse.statusCode).")
         }
 
-        let messageResponse = try JSONDecoder().decode(MessagesResponse.self, from: data)
-        guard let text = messageResponse.content.first(where: { $0.type == "text" })?.text else {
-            throw APIError.invalidResponse
+        var textBuffer = ""
+        var currentPhase: SummarizePhase = .analyzing
+        var stopReason: String?
+
+        for try await line in bytes.lines {
+            guard line.hasPrefix("data: ") else { continue }
+            let jsonText = line.dropFirst("data: ".count)
+            guard let chunkData = jsonText.data(using: .utf8),
+                  let chunk = try? JSONDecoder().decode(StreamChunk.self, from: chunkData) else {
+                continue
+            }
+
+            switch chunk.type {
+            case "content_block_delta":
+                guard let delta = chunk.delta?.text else { continue }
+                textBuffer += delta
+
+                let testsFound = textBuffer.components(separatedBy: "\"testName\"").count - 1
+                currentPhase = Self.phase(for: textBuffer)
+                continuation.yield(.progress(phase: currentPhase, testsFound: testsFound))
+
+            case "message_delta":
+                stopReason = chunk.delta?.stopReason ?? stopReason
+
+            case "error":
+                throw APIError.server(chunk.error?.message ?? "The server reported a streaming error.")
+
+            default:
+                break
+            }
         }
 
-        let jsonText = Self.stripCodeFences(from: text)
+        guard !textBuffer.isEmpty else {
+            throw APIError.incompleteResponse(stopReason: stopReason)
+        }
+
+        continuation.yield(.progress(phase: .finalizing, testsFound: textBuffer.components(separatedBy: "\"testName\"").count - 1))
+
+        let jsonText = Self.stripCodeFences(from: textBuffer)
         guard let jsonData = jsonText.data(using: .utf8) else { throw APIError.invalidResponse }
 
         do {
-            return try JSONDecoder().decode(BloodTestSummary.self, from: jsonData)
+            let summary = try JSONDecoder().decode(BloodTestSummary.self, from: jsonData)
+            continuation.yield(.finished(summary))
         } catch {
             throw APIError.decoding(error)
         }
+    }
+
+    private static func phase(for buffer: String) -> SummarizePhase {
+        if buffer.contains("\"disclaimer\"") { return .finalizing }
+        if buffer.contains("\"recommendations\"") { return .buildingRecommendations }
+        if buffer.contains("\"findings\"") { return .extractingFindings }
+        return .analyzing
+    }
+
+    private static func collectBody(from bytes: URLSession.AsyncBytes) async throws -> Data {
+        var data = Data()
+        for try await byte in bytes {
+            data.append(byte)
+        }
+        return data
     }
 
     /// Instructs Claude to read the PDF and answer with *only* JSON matching

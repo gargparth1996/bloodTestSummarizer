@@ -12,8 +12,12 @@
 		2C362F31ED375466B4041670 /* FindingCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97E29B8158DEB201AF8965CE /* FindingCell.swift */; };
 		303A8EF7304336E100DE4223 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 303A8EF6304336E000DE4223 /* APIError.swift */; };
 		303A8EFC304337F000DE4223 /* ClaudeAPIResponseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 303A8EFB304337E500DE4223 /* ClaudeAPIResponseModels.swift */; };
+		303A8F023043553400DE4223 /* SummarizeEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 303A8F013043553300DE4223 /* SummarizeEvent.swift */; };
+		303A8F063043554C00DE4223 /* SummarizePhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 303A8F053043554B00DE4223 /* SummarizePhase.swift */; };
+		3A55B68228F19DB98D702C98 /* ClaudeAPIStreamModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2326B361E015E3410CEAE2 /* ClaudeAPIStreamModels.swift */; };
 		3EE3F0C6B54B6B5C95A88CE7 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DE3C99309D09979B74D2267 /* MainViewController.swift */; };
 		4BEBF640AB35DF28C5D874AC /* ClaudeAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B5A210E837A1CF72BB07E24 /* ClaudeAPIService.swift */; };
+		823EB6B27E250C993E14F595 /* LoadingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA6B33C2CA0073E1B0E2530 /* LoadingIndicatorView.swift */; };
 		A1BE4A0CE021614BF58C2ECA /* BloodTestSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBF4EA18CC0E7D5E85007D57 /* BloodTestSummary.swift */; };
 		A3724C6BBC6F862A0F15E06B /* APIConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C24B681DA5958141C216776 /* APIConfiguration.swift */; };
 		A465ED3301557AC3208ED11C /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D6323C0512149C85E4399AA /* SceneDelegate.swift */; };
@@ -25,9 +29,13 @@
 		2C24B681DA5958141C216776 /* APIConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfiguration.swift; sourceTree = "<group>"; };
 		303A8EF6304336E000DE4223 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
 		303A8EFB304337E500DE4223 /* ClaudeAPIResponseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeAPIResponseModels.swift; sourceTree = "<group>"; };
+		303A8F013043553300DE4223 /* SummarizeEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizeEvent.swift; sourceTree = "<group>"; };
+		303A8F053043554B00DE4223 /* SummarizePhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummarizePhase.swift; sourceTree = "<group>"; };
+		4DA6B33C2CA0073E1B0E2530 /* LoadingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingIndicatorView.swift; sourceTree = "<group>"; };
 		4DE3C99309D09979B74D2267 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		5E69D47F52CA983A2F857C9D /* SummaryViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummaryViewController.swift; sourceTree = "<group>"; };
 		7B35AF6865CA3E049B76C358 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		8D2326B361E015E3410CEAE2 /* ClaudeAPIStreamModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeAPIStreamModels.swift; sourceTree = "<group>"; };
 		8D6323C0512149C85E4399AA /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		97E29B8158DEB201AF8965CE /* FindingCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindingCell.swift; sourceTree = "<group>"; };
 		B50BE26FB475869E3763F85E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -51,6 +59,7 @@
 			isa = PBXGroup;
 			children = (
 				97E29B8158DEB201AF8965CE /* FindingCell.swift */,
+				4DA6B33C2CA0073E1B0E2530 /* LoadingIndicatorView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -60,6 +69,8 @@
 			children = (
 				303A8EF6304336E000DE4223 /* APIError.swift */,
 				2C24B681DA5958141C216776 /* APIConfiguration.swift */,
+				303A8F013043553300DE4223 /* SummarizeEvent.swift */,
+				303A8F053043554B00DE4223 /* SummarizePhase.swift */,
 			);
 			path = Enums;
 			sourceTree = "<group>";
@@ -70,6 +81,7 @@
 				DBF4EA18CC0E7D5E85007D57 /* BloodTestSummary.swift */,
 				F0DC9B37181726CA93F8D400 /* ClaudeAPIRequestModels.swift */,
 				303A8EFB304337E500DE4223 /* ClaudeAPIResponseModels.swift */,
+				8D2326B361E015E3410CEAE2 /* ClaudeAPIStreamModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -214,7 +226,11 @@
 				01F66F183C7F971D4824B611 /* ClaudeAPIRequestModels.swift in Sources */,
 				4BEBF640AB35DF28C5D874AC /* ClaudeAPIService.swift in Sources */,
 				2C362F31ED375466B4041670 /* FindingCell.swift in Sources */,
+				303A8F063043554C00DE4223 /* SummarizePhase.swift in Sources */,
 				303A8EFC304337F000DE4223 /* ClaudeAPIResponseModels.swift in Sources */,
+				303A8F023043553400DE4223 /* SummarizeEvent.swift in Sources */,
+				3A55B68228F19DB98D702C98 /* ClaudeAPIStreamModels.swift in Sources */,
+				823EB6B27E250C993E14F595 /* LoadingIndicatorView.swift in Sources */,
 				3EE3F0C6B54B6B5C95A88CE7 /* MainViewController.swift in Sources */,
 				E4577BCD42E23839079D4BCE /* SummaryViewController.swift in Sources */,
 				303A8EF7304336E100DE4223 /* APIError.swift in Sources */,

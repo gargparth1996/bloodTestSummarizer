@@ -7,15 +7,6 @@
 
 import Foundation
 
-struct MessagesResponse: Decodable, Sendable {
-    let content: [ResponseContentBlock]
-}
-
-struct ResponseContentBlock: Decodable, Sendable {
-    let type: String
-    let text: String?
-}
-
 // MARK: - Error body
 
 /// Anthropic returns `{"type": "error", "error": {"type": ..., "message": ...}}`

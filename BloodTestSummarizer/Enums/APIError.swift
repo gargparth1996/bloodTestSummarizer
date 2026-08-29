@@ -11,8 +11,10 @@ enum APIError: Error, LocalizedError, Sendable {
     case missingAPIKey
     case fileTooLarge
     case invalidResponse
+    case incompleteResponse(stopReason: String?)
     case server(String)
     case decoding(Error)
+    case streamError(String)
 
     var errorDescription: String? {
         switch self {
@@ -22,10 +24,17 @@ enum APIError: Error, LocalizedError, Sendable {
             return "This PDF is over the 32MB request limit. Try a smaller file."
         case .invalidResponse:
             return "The server sent back something this app didn't expect."
+        case .incompleteResponse(let stopReason):
+            if let stopReason {
+                return "We couldn't generate the summary! (Internal Reason: \(stopReason))."
+            }
+            return "We couldn't generate the summary! :("
         case .server(let message):
             return message
         case .decoding(let error):
             return "Couldn't parse the summary Claude returned: \(error.localizedDescription)"
+        case .streamError(let message):
+            return message
         }
     }
 }

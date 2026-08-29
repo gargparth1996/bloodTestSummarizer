@@ -32,22 +32,13 @@ final class MainViewController: UIViewController {
         return button
     }()
 
-    private let activityIndicator: UIActivityIndicatorView = {
-        let indicator = UIActivityIndicatorView(style: .large)
-        indicator.hidesWhenStopped = true
-        indicator.translatesAutoresizingMaskIntoConstraints = false
-        return indicator
+    private let loadingView: LoadingIndicatorView = {
+        let view = LoadingIndicatorView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
     }()
 
-    private let statusLabel: UILabel = {
-        let label = UILabel()
-        label.textColor = .secondaryLabel
-        label.font = .preferredFont(forTextStyle: .footnote)
-        label.textAlignment = .center
-        label.numberOfLines = 0
-        label.translatesAutoresizingMaskIntoConstraints = false
-        return label
-    }()
+    private var summarizeTask: Task<Void, Never>?
 
     private let disclaimerLabel: UILabel = {
         let label = UILabel()
@@ -66,10 +57,11 @@ final class MainViewController: UIViewController {
         view.backgroundColor = .systemBackground
         setUpLayout()
         uploadButton.addTarget(self, action: #selector(didTapUpload), for: .touchUpInside)
+        loadingView.onCancel = { [weak self] in self?.summarizeTask?.cancel() }
     }
 
     private func setUpLayout() {
-        [iconView, uploadButton, activityIndicator, statusLabel, disclaimerLabel].forEach(view.addSubview)
+        [iconView, uploadButton, loadingView, disclaimerLabel].forEach(view.addSubview)
 
         NSLayoutConstraint.activate([
             iconView.bottomAnchor.constraint(equalTo: uploadButton.topAnchor, constant: -32),
@@ -80,12 +72,9 @@ final class MainViewController: UIViewController {
             uploadButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             uploadButton.centerYAnchor.constraint(equalTo: view.centerYAnchor),
 
-            activityIndicator.topAnchor.constraint(equalTo: uploadButton.bottomAnchor, constant: 24),
-            activityIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-
-            statusLabel.topAnchor.constraint(equalTo: activityIndicator.bottomAnchor, constant: 12),
-            statusLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
-            statusLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
+            loadingView.topAnchor.constraint(equalTo: uploadButton.bottomAnchor, constant: 24),
+            loadingView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
+            loadingView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
 
             disclaimerLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             disclaimerLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
@@ -100,13 +89,12 @@ final class MainViewController: UIViewController {
         present(picker, animated: true)
     }
 
-    private func setLoading(_ loading: Bool, message: String?) {
+    private func setLoading(_ loading: Bool) {
         uploadButton.isEnabled = !loading
-        statusLabel.text = message
         if loading {
-            activityIndicator.startAnimating()
+            loadingView.start()
         } else {
-            activityIndicator.stopAnimating()
+            loadingView.stop()
         }
     }
 
@@ -125,11 +113,11 @@ extension MainViewController: UIDocumentPickerDelegate {
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard let url = urls.first else { return }
-        Task { await processPDF(at: url) }
+        summarizeTask = Task { await processPDF(at: url) }
     }
 
     private func processPDF(at url: URL) async {
-        setLoading(true, message: "Reading PDF…")
+        setLoading(true)
 
         // PDFs picked via UIDocumentPickerViewController may live outside
         // the app's sandbox, so we need security-scoped access to read them.
@@ -138,12 +126,21 @@ extension MainViewController: UIDocumentPickerDelegate {
 
         do {
             let data = try Data(contentsOf: url)
-            setLoading(true, message: "Analyzing with Claude…")
-            let summary = try await apiService.summarize(pdfData: data)
-            setLoading(false, message: nil)
-            navigationController?.pushViewController(SummaryViewController(summary: summary), animated: true)
+            let events = await apiService.summarize(pdfData: data)
+            for try await event in events {
+                switch event {
+                case .progress(let phase, let testsFound):
+                    loadingView.update(phase: phase, testsFound: testsFound)
+                case .finished(let summary):
+                    loadingView.complete()
+                    setLoading(false)
+                    navigationController?.pushViewController(SummaryViewController(summary: summary), animated: true)
+                }
+            }
         } catch {
-            setLoading(false, message: nil)
+            setLoading(false)
+            // The user tapped Cancel — no error to show.
+            guard !Task.isCancelled else { return }
             presentError(error)
         }
     }

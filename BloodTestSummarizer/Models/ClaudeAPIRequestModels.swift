@@ -12,9 +12,10 @@ struct MessagesRequest: Encodable, Sendable {
     let maxTokens: Int
     let system: String
     let messages: [APIMessage]
+    let stream: Bool
 
     enum CodingKeys: String, CodingKey {
-        case model, system, messages
+        case model, system, messages, stream
         case maxTokens = "max_tokens"
     }
 }
