@@ -10,8 +10,17 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class MainViewController: UIViewController {
+    private let viewModel: MainViewModel
 
-    private let apiService = ClaudeAPIService()
+    // We are using init here so as to make this class testable.
+    init(viewModel: MainViewModel = MainViewModel()) {
+        self.viewModel = viewModel
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 
     private let iconView: UIImageView = {
         let view = UIImageView(image: UIImage(systemName: "cross.case"))
@@ -38,8 +47,6 @@ final class MainViewController: UIViewController {
         return view
     }()
 
-    private var summarizeTask: Task<Void, Never>?
-
     private let disclaimerLabel: UILabel = {
         let label = UILabel()
         label.text = "This app gives a plain-language summary for reference only. It is not a diagnosis — always review results with a licensed physician."
@@ -56,8 +63,9 @@ final class MainViewController: UIViewController {
         title = "Blood Test Summary"
         view.backgroundColor = .systemBackground
         setUpLayout()
+        viewModel.delegate = self
         uploadButton.addTarget(self, action: #selector(didTapUpload), for: .touchUpInside)
-        loadingView.onCancel = { [weak self] in self?.summarizeTask?.cancel() }
+        loadingView.onCancel = { [weak self] in self?.viewModel.cancelLoading() }
     }
 
     private func setUpLayout() {
@@ -84,64 +92,51 @@ final class MainViewController: UIViewController {
 
     @objc private func didTapUpload() {
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.pdf])
-        picker.delegate = self
+        picker.delegate = self.viewModel
         picker.allowsMultipleSelection = false
         present(picker, animated: true)
     }
-
-    private func setLoading(_ loading: Bool) {
-        uploadButton.isEnabled = !loading
-        if loading {
-            loadingView.start()
-        } else {
-            loadingView.stop()
-        }
-    }
-
-    private func presentError(_ error: Error) {
-        let alert = UIAlertController(
-            title: "Couldn't summarize PDF",
-            message: error.localizedDescription,
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        present(alert, animated: true)
-    }
 }
 
-extension MainViewController: UIDocumentPickerDelegate {
-
-    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        guard let url = urls.first else { return }
-        summarizeTask = Task { await processPDF(at: url) }
-    }
-
-    private func processPDF(at url: URL) async {
-        setLoading(true)
-
-        // PDFs picked via UIDocumentPickerViewController may live outside
-        // the app's sandbox, so we need security-scoped access to read them.
-        let didStartAccessing = url.startAccessingSecurityScopedResource()
-        defer { if didStartAccessing { url.stopAccessingSecurityScopedResource() } }
-
-        do {
-            let data = try Data(contentsOf: url)
-            let events = await apiService.summarize(pdfData: data)
-            for try await event in events {
-                switch event {
-                case .progress(let phase, let testsFound):
-                    loadingView.update(phase: phase, testsFound: testsFound)
-                case .finished(let summary):
-                    loadingView.complete()
-                    setLoading(false)
-                    navigationController?.pushViewController(SummaryViewController(summary: summary), animated: true)
-                }
+extension MainViewController: @MainActor ActionableDelegate {
+    func setLoading(_ loading: Bool) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            uploadButton.isEnabled = !loading
+            if loading {
+                loadingView.start()
+            } else {
+                loadingView.stop()
             }
-        } catch {
+        }
+    }
+    
+    func update(phase: SummarizePhase, testsFound: Int) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            loadingView.update(phase: phase, testsFound: testsFound)
+        }
+    }
+    
+    func complete(summary: BloodTestSummary) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
             setLoading(false)
-            // The user tapped Cancel — no error to show.
-            guard !Task.isCancelled else { return }
-            presentError(error)
+            navigationController?.pushViewController(SummaryViewController(summary: summary), animated: true)
+        }
+    }
+    
+    func presentError(_ error: Error) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let alert = UIAlertController(
+                title: "Couldn't summarize PDF",
+                message: error.localizedDescription,
+                preferredStyle: .alert
+            )
+            
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
         }
     }
 }
